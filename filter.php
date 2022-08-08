@@ -584,6 +584,12 @@ class filter_filtercodes extends moodle_text_filter {
         return $progresspercent;
     }
 
+    /**
+    * Clean a string for use in a url.
+    *
+    * @param  string string to clean.
+    * @return string cleaned string.
+    */
     public function clean_string($s) : string {
         $s = strtolower($s);
         $s = preg_replace('/[^a-z0-9 -]+/', '', $s);
@@ -592,7 +598,7 @@ class filter_filtercodes extends moodle_text_filter {
     }
 
     /**
-    * Return the url for details for a course card.
+    * Return the details for a course card.
     *
     * @param  Object $course
     * @return Object stdClass of course details for mustache.
@@ -606,7 +612,6 @@ class filter_filtercodes extends moodle_text_filter {
         $cat = core_course_category::get($c->category, IGNORE_MISSING);
         $course->cat = $cat->get_formatted_name();
         $course->summary = strip_tags($c->summary);
-
 
         // Enrolled.
         $context = context_course::instance($c->id);
@@ -622,12 +627,11 @@ class filter_filtercodes extends moodle_text_filter {
         if ($course->enrolled) {
             $course->completionenabled = false;
             $completion = new \completion_info($c);
-
+            
             if ($completion->is_enabled()) {
                 $course->completionenabled = true;
                 $percentage = \core_completion\progress::get_course_progress_percentage($c, $USER->id);
                 $course->progress = floor($percentage);
-
             }
         }
 
