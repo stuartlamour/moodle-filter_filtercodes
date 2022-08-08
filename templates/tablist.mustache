@@ -1,0 +1,140 @@
+{{!
+    @template filter_filtercodes/tablist
+}}
+
+
+{{#js}}
+require(['jquery'], function($) {
+    $(document).ready(function(){
+        /* Search. */
+        $("#searchCats").on("input", function() {
+            var value = $(this).val().toLowerCase();
+
+            // Hide and show search container/tab content.
+            if (value.length > 2) {
+                $('#searchResults').addClass('d-block');
+                $('#catTabsContent').addClass('d-none');
+
+                // Hide/show cards.
+                $("#searchResults .course-link").filter(function() {
+                    $(this).parents('[class^="col-"]').toggle( $(this).text().toLowerCase().indexOf(value) > -1 );
+                    // Count results.
+                    $('#searchResultsCount').text($('#searchResults .course-card:visible').length);
+                });
+            }
+            else {
+                $('#searchResults').removeClass('d-block');
+                $('#catTabsContent').removeClass('d-none');
+            }
+        });
+
+        /* Clear serach on navigating away. */
+        $("#catTabs .nav-link").on("click", function() {
+            $("#searchCats").val('').trigger("input");
+        });
+    });
+});
+{{/js}}
+
+
+
+<!-- filter_filtercodes/tablist template. -->
+<div class="container">
+    <form class="py-3 w-25 ml-auto">
+        <div class="input-group">
+              <input class="form-control rounded" type="search" id="searchCats" placeholder="Search courses">
+        </div>
+    </form>
+    <div class="row">
+        <div class="col-3">
+
+            {{! Tabs. }}
+            <nav class="nav flex-column" role="tablist" id="catTabs">
+                 <small class="text-uppercase">{{#str}} categories {{/str}}</small>
+
+                 {{#cat}}
+                 <a class="nav-link ml-md-{{depth}} p-0" data-toggle="tab" role="tab" tabindex="0" aria-selected="false"
+                 id="tab-{{id}}" href="#{{id}}-courses" aria-controls="{{id}}-courses">
+                    {{{name}}} {{#count}} ({{count}}) {{/count}}
+                 </a>
+                 {{/cat}}
+
+            </nav>
+        </div>
+
+        <div class="col">
+            {{! Search. }}
+            <div class="container d-none" id="searchResults" >
+                <h3><span id="searchResultsCount"></span> {{#str}} courses {{/str}} found</h3>
+                <div class="row mt-3">
+                    {{#cat}}
+                    {{#course}}
+                        <div class="col-lg-4 col-md-6 mb-4" style="display: none;">
+                        {{> filter_filtercodes/course-card }}
+                        </div>
+                    {{/course}}
+                    {{/cat}}
+               </div>
+            </div>
+
+            {{! Panes. }}
+            <div class="tab-content container" id="catTabsContent">
+
+                {{#cat}}
+                <section class="tab-pane fade" role="tabpanel"
+                id="{{id}}-courses"  aria-labelledby="tab-{{id}}">
+                   <small class="text-uppercase">{{{parentname}}}</small>
+                    <h3>{{{name}}}</h3>
+                    <div>{{{description}}}</div>
+                    {{#count}} <h4 class="small">{{count}} {{#str}} courses {{/str}}</h4> {{/count}}
+                    <div class="row mt-3">
+                        {{#course}}
+                            <div class="col-lg-4 col-md-6 mb-4">
+                            {{> filter_filtercodes/course-card }}
+                            </div>
+                        {{/course}}
+                    </div>
+                </section>
+                {{/cat}}
+
+            </div>
+        </div>
+
+    </div>
+</div>
+<!-- /tablist template. -->
+
+<style>
+.line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+.line-clamp-3 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+}
+
+.bg-cover {
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
+}
+
+#catTabs .nav-link.active {
+    font-weight: bold;
+}
+#catTabs .nav-link {
+    box-shadow: none;
+}
+
+.hover-scale .hover-scale-target {
+    transition: all .5s;
+}
+.hover-scale:hover .hover-scale-target {
+    transform: scale(1.03);
+}
+</style>

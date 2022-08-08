@@ -584,6 +584,62 @@ class filter_filtercodes extends moodle_text_filter {
         return $progresspercent;
     }
 
+    public function clean_string($s) : string {
+        $s = strtolower($s);
+        $s = preg_replace('/[^a-z0-9 -]+/', '', $s);
+        $s = str_replace(' ', '-', $s);
+        return trim($s, '-');
+    }
+
+    /**
+    * Return the url for details for a course card.
+    *
+    * @param  Object $course
+    * @return Object stdClass of course details for mustache.
+    */
+    public function get_course_details($c = false) {
+        global $CFG, $USER, $OUTPUT;
+
+        $course = new \stdClass();
+        $course->id = $c->id;
+        $course->name = $c->fullname;
+        $cat = core_course_category::get($c->category, IGNORE_MISSING);
+        $course->cat = $cat->get_formatted_name();
+        $course->summary = strip_tags($c->summary);
+
+
+        // Enrolled.
+        $context = context_course::instance($c->id);
+        $course->enrolled = is_enrolled($context, $USER->id, '', true);
+
+        $icons = enrol_get_course_info_icons($c);
+        $course->enrolementicons = '';
+        foreach ($icons as $icon) {
+            $course->enrolementicons .= $OUTPUT->render($icon);
+        }
+
+        // Progress.
+        if ($course->enrolled) {
+            $course->completionenabled = false;
+            $completion = new \completion_info($c);
+
+            if ($completion->is_enabled()) {
+                $course->completionenabled = true;
+                $percentage = \core_completion\progress::get_course_progress_percentage($c, $USER->id);
+                $course->progress = floor($percentage);
+
+            }
+        }
+
+        $courseimage = '';
+        foreach ($c->get_course_overviewfiles() as $file) {
+            $courseimage = file_encode_url("$CFG->wwwroot/pluginfile.php", '/' . $file->get_contextid() . '/' . $file->get_component() . '/' . $file->get_filearea() . $file->get_filepath() . $file->get_filename());
+        }
+        $course->img = $courseimage;
+
+        return $course;
+    }
+
     /**
      * Main filter function called by Moodle.
      *
@@ -1031,6 +1087,83 @@ class filter_filtercodes extends moodle_text_filter {
             $u->lastname = get_string('defaultsurname', 'filter_filtercodes');
         }
         $u->fullname = trim(get_string('fullnamedisplay', null, $u));
+
+        // TODO - should this go here?
+        if (stripos($text, '{cardy') !== false) {
+            global $OUTPUT;
+
+            preg_match_all('/\{cardy ([0-9]+)\}/', $text, $matches);
+            $cardids = array_unique($matches[1]);
+            foreach ($cardids as $id) {
+                $c = get_course($id);
+                $c = new \core_course_list_element($c);
+                $template = $this->get_course_details($c);
+
+                // Output content.
+                $replace['/\{cardy ' . $c->id . '\}/isuU'] = $OUTPUT->render_from_template('filter_filtercodes/course-card', $template);
+            }
+        }
+
+        // Tag: {hiworld}.
+        if (stripos($text, '{hiworld') !== false) {
+            global $OUTPUT, $USER;
+
+            // TODO - make this the first regex.
+            // Get the catagory we want to display.
+            $parentid = 0;
+            preg_match_all('/\{hiworld ([0-9]+)\}/', $text, $matches);
+            $parentid = $matches[1][0];
+
+            // Template.
+            $template = new \stdClass();
+            $template->cat = [];
+
+            // Categories.
+            $chelper = new coursecat_helper();
+            $categorynames = array();
+            foreach (core_course_category::make_categories_list() as $id => $category) {
+                $categoryobject = core_course_category::get($id);
+                // Check course is in the catagory we want to display.
+                $parentcategories = explode('/', $categoryobject->path);
+                if (in_array($parentid, $parentcategories)) {
+
+                    // Skip if not user visible.
+                    // TODO - check this works.
+                    if(!$categoryobject->is_uservisible()) {
+                        continue;
+                    }
+
+                    // Keep an array of category id name to reference for things like parent.
+                    $categorynames[$categoryobject->id] = $categoryobject->get_formatted_name();
+
+                    // Template.
+                    $cat = new \stdClass();
+                    // Use human friendly names for urls.
+                    // Each tab/panle needs a unique id.
+                    // Using the catagory name instead of an id makes the name display in browser autocomplete.
+                    $cat->slug = $this->clean_string($categoryobject->get_formatted_name());
+                    $cat->id = $cat->slug;
+                    $cat->name = $categoryobject->get_formatted_name();
+                    $cat->description = $chelper->get_category_formatted_description($categoryobject);
+                    $cat->count = $categoryobject->get_courses_count();
+                    $cat->depth = $categoryobject->depth - 1;
+                    $cat->parentname = $categorynames[$categoryobject->parent];
+                    $cat->course = [];
+
+                    // Get courses in this category.
+                    $courses = $categoryobject->get_courses($chelper->get_courses_display_options());
+                    foreach ($courses as $c) {
+                        $course = $this->get_course_details($c);
+                        $cat->course[] = $course;
+                    }
+                    $template->cat[] = $cat;
+                }
+            }
+
+            // Output content.
+            $html = $OUTPUT->render_from_template('filter_filtercodes/tablist', $template);
+            $replace['/\{hiworld ' . $parentid . '\}/i'] = $html;
+        }
 
         // Tag: {firstname}.
         if (stripos($text, '{firstname}') !== false) {

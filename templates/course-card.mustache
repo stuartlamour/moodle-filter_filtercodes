@@ -1,0 +1,28 @@
+{{!
+    @template filter_filtercodes/course-card
+}}
+
+<!-- filter_filtercodes/course-card template. -->
+<div class="course-card hover-scale d-flex flex-column h-100">
+    <div class="overflow-hidden rounded mb-3">
+        <div class="hover-scale-target bg-cover img {{{^img}}} bg-light {{{/img}}}" style="background-image: url('{{{img}}}'); height: 150px;"></div>
+    </div>
+
+    <a class="course-link line-clamp-2 font-weight-bold stretched-link pb-2" href="{{config.wwwroot}}/course/view.php?id={{id}}">{{{name}}}</a>
+    <div class="small text-muted text-uppercase">{{cat}}</div>
+    <div class="line-clamp-3 small my-2">{{summary}}</div>
+
+    {{^enrolled}}
+        <div class="text-primary">{{{enrolementicons}}}</div>
+    {{/enrolled}}
+
+    {{#completionenabled}}
+    <div class="mt-auto">
+        <div class="small">{{progress}}% {{#str}} complete {{/str}}</div>
+        <div class="progress my-2 rounded" style="height: .5rem;">
+            <div class="progress-bar rounded bg-success" role="progressbar" aria-valuenow="{{progress}}" style="width: {{progress}}%" aria-valuemin="0" aria-valuemax="100"></div>
+        </div>
+    </div>
+    {{/completionenabled}}
+</div>
+<!-- /course-card template. -->
