@@ -1338,9 +1338,7 @@ class filter_filtercodes extends moodle_text_filter {
             }
             $template->count = count($template->course);
             // Catagories to filter by.
-            var_dump($catagories);
-            $cats = ksort($catagories);
-            $template->cat = array_values($cats);
+            $template->cat = array_values($catagories);
 
             // Next event.
             $courseids = '(' . implode(',', $mycourseids) . ')';
