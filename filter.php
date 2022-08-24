@@ -601,9 +601,10 @@ class filter_filtercodes extends moodle_text_filter {
     * Return the details for a course card.
     *
     * @param  Object $course
+    * @param  bool $extradata - fetch extra data for enrolled display.
     * @return Object stdClass of course details for mustache.
     */
-    public function get_course_details($c = false) {
+    public function get_course_details($c = false, $extradata = false) {
         global $CFG, $USER, $OUTPUT;
 
         $course = new \stdClass();
@@ -611,6 +612,7 @@ class filter_filtercodes extends moodle_text_filter {
         $course->name = $c->fullname;
         $cat = core_course_category::get($c->category, IGNORE_MISSING);
         $course->cat = $cat->get_formatted_name();
+        $course->catid = $cat->id;
         $course->summary = strip_tags($c->summary);
 
         // Enrolled.
@@ -623,18 +625,49 @@ class filter_filtercodes extends moodle_text_filter {
             $course->enrolementicons .= $OUTPUT->render($icon);
         }
 
-        // Progress.
-        if ($course->enrolled) {
+        // When enrolled, get useful data.
+        if ($course->enrolled && $extradata) {
             $course->completionenabled = false;
+
+            // Progress.
             $completion = new \completion_info($c);
-            
             if ($completion->is_enabled()) {
                 $course->completionenabled = true;
                 $percentage = \core_completion\progress::get_course_progress_percentage($c, $USER->id);
                 $course->progress = floor($percentage);
             }
+
+            // Forum posts.
+            $course->hasforumpost = false;
+            $course->forumpost = self::get_course_forum_posts($c);
+            if ($course->forumpost) {
+                $course->hasforumpost = true;
+            }
+
+            // Grade.
+            // Use user grade report to get course grade.
+            // This is core, so takes into account hidden grade settings etc.
+            require_once ($CFG->dirroot.'/grade/report/user/lib.php');
+            require_once ($CFG->dirroot.'/grade/lib.php');
+            $gpr = new grade_plugin_return(
+                array(
+                    'type' => 'report',
+                    'plugin' => 'user',
+                    'courseid' => $c->id,
+                    'userid' => $USER->id
+                )
+            );
+            $coursecontext = \context_course::instance($c->id);
+            $report = new \grade_report_user($c->id, $gpr, $coursecontext, $USER->id);
+            $report->fill_table();
+            $coursetotal = end($report->tabledata);
+            $grade = $coursetotal['grade']['content'];
+            if (is_numeric($grade)) {
+                $course->grade = $grade;
+            }
         }
 
+        // Course image.
         $courseimage = '';
         foreach ($c->get_course_overviewfiles() as $file) {
             $courseimage = file_encode_url("$CFG->wwwroot/pluginfile.php", '/' . $file->get_contextid() . '/' . $file->get_component() . '/' . $file->get_filearea() . $file->get_filepath() . $file->get_filename());
@@ -642,6 +675,148 @@ class filter_filtercodes extends moodle_text_filter {
         $course->img = $courseimage;
 
         return $course;
+    }
+
+    /**
+     * Return forum posts for a course.
+     *
+     * @param  Object $course
+     * @return string
+     */
+    public static function get_course_forum_posts($c) {
+        global $CFG, $USER, $DB, $PAGE, $OUTPUT;
+        // Forum lib.
+        require_once($CFG->dirroot.'/mod/forum/lib.php');
+
+        // Check is there are forms for this course.
+        if (!$forums = forum_get_readable_forums($USER->id, $c->id)) {
+            return false; // Nothing to do.
+        }
+
+        // Array of forum ids in this course.
+        $forumids = [];
+        foreach ($forums as $f) {
+            $forumids[] = $f->id;
+        }
+        // Single query for all posts in all forums in a course.
+        // We limit this to 90 days (approx 3 months).
+        // TODO - do we hide current user posts?
+        // TODO - deal with groups, private reply etc..
+        // TODO - how do we pass this as a param?
+        $courseforumids = '(' . implode(',', $forumids) . ')';
+        $sql = "SELECT p.*, u.picture, u.firstname, u.lastname, u.email
+                  FROM {forum_discussions} d
+                  JOIN {forum_posts} p ON p.discussion = d.id
+                  JOIN {user} u ON u.id = p.userid
+                 WHERE d.forum IN " .$courseforumids. "
+                   AND p.modified < date_sub(now(), interval 90 day)
+              ORDER BY p.modified DESC";
+        $params = [];
+        $posts = $DB->get_records_sql($sql, $params, 0, 3); // 5 posts max.
+
+        // Check is there are posts for this course.
+        if (!$posts) {
+            return false; // Nothing to do.
+        }
+        // Template.
+        $template = [];
+        foreach ($posts as $p) {
+            // Template.
+            $post = new \stdClass();
+            $post->date = self::relative_time($p->modified);
+            $re = get_string('re', 'forum');
+            $post->subject = str_replace($re, '', $p->subject); // Keep the subject clean.
+            $post->message = strip_tags($p->message);
+            // TODO - can the #p be and array value in the moodle url?
+            $post->url = new moodle_url('/mod/forum/discuss.php', ['d' => $p->discussion]) . '#p'.$p->id;
+
+            // User details.
+            $post->fullname = $p->firstname.' '.$p->lastname;
+            // If user has a picture.
+            if ($p->picture > 0) {
+                // User object to pass to user_picture.
+                $user = new \stdClass();
+                $user->id =  $p->userid;
+                $user->picture =  $p->picture;
+                $user->firstname = $p->firstname;
+                $user->lastname = $p->lastname;
+                $user->email = $p->email;
+                // These are required by the user object, but not used.
+                $user->firstnamephonetic = '';
+                $user->lastnamephonetic = '';
+                $user->middlename = '';
+                $user->alternatename = '';
+                $user->imagealt = '';
+
+                // Generate user picture.
+                $userpicture = new user_picture($user);
+                $userpicture->link = false;
+                $userpicture->alttext = false;
+                $userpicture->size = 50;
+                $url = $userpicture->get_url($PAGE)->out(false);
+                $post->userpicture = '<div class="rounded-circle" style="background-image: url(' .$url. '); background-size: cover; background-position: center; width: 32px; height: 32px;"></div>';
+            }
+            else {
+                // User initials circle.
+                $initials = mb_substr($p->firstname, 0, 1) . mb_substr($p->lastname, 0, 1);
+                $post->userpicture = '<div class="d-flex align-items-center justify-content-center rounded-circle bg-primary text-white small" style="height: 32px; width: 32px;">' . $initials . '</div>';
+            }
+            $template[] = $post;
+        }
+        // Return forum posts.
+        return $template;
+    }
+
+    /**
+     * Return friendly relative time (e.g. "1 min ago", "1 year ago") in a <time> tag
+     *
+     * @return string
+     */
+    public static function relative_time($timeinpast) : string {
+        $secsago = abs(time() - $timeinpast);
+        if ($secsago > 0) {
+            $years     = floor($secsago/YEARSECS);
+            $remainder = $secsago - ($years*YEARSECS);
+            $days      = floor($remainder/DAYSECS);
+            $remainder = $secsago - ($days*DAYSECS);
+            $hours     = floor($remainder/HOURSECS);
+            $remainder = $remainder - ($hours*HOURSECS);
+            $mins      = floor($remainder/MINSECS);
+            $secs      = $remainder - ($mins*MINSECS);
+            $weeks = 0;
+            $months = 0;
+            // Weeks and months don't have exact secs, so approximate.
+            if ($days > 6) {
+                $weeks = floor($days/7);
+                if ($weeks > 4) {
+                    $months = floor($weeks/4);
+                }
+            }
+
+            if ($secs) {
+                $relativetext = $secs .'s';
+            }
+            if ($mins) {
+                $relativetext = $mins .'m';
+            }
+            if ($hours) {
+                $relativetext = $hours .'h';
+            }
+            if ($days) {
+                $relativetext = $days .'d';
+            }
+            if ($weeks ||  $months) {
+                $relativetext = date("M d", $timeinpast);
+            }
+            if ($years) {
+                $relativetext = date("M d y", $timeinpast);
+            }
+
+            $datetime = date(\DateTime::W3C, $timeinpast);
+            return '<time datetime="' .$datetime. '">'. $relativetext .'</time>';
+        }
+        // We will probably never get here.
+        return '<time>just now</time>';
     }
 
     /**
@@ -1084,7 +1259,6 @@ class filter_filtercodes extends moodle_text_filter {
         }
 
         // Substitutions.
-
         $u = $USER;
         if (!isloggedin() || isguestuser()) {
             $u->firstname = get_string('defaultfirstname', 'filter_filtercodes');
@@ -1092,7 +1266,116 @@ class filter_filtercodes extends moodle_text_filter {
         }
         $u->fullname = trim(get_string('fullnamedisplay', null, $u));
 
-        // TODO - should this go here?
+        // TODO - should these go here?
+        // Tag: {himycourses} - list of my courses.
+        if (stripos($text, '{himycourses') !== false) {
+            // TODO - this should probably be a block.
+            global $USER, $DB, $OUTPUT;
+            $template = new \stdClass;
+            // Header.
+            // User details.
+            $template->fullname =  get_string('fullnamedisplay', null, $USER);
+            // TODO - wet code...
+            // If user has a picture.
+            if ($USER->picture > 0) {
+                // Generate user picture.
+                $userpicture = new user_picture($USER);
+                $userpicture->link = false;
+                $userpicture->alttext = false;
+                $userpicture->size = 100;
+                $url = $userpicture->get_url($PAGE)->out(false);
+                $template->userpicture = '<div class="rounded-circle" style="background-image: url(' .$url. '); background-size: cover; background-position: center; width: 65px; height: 65px;"></div>';
+            }
+            else {
+                // User initials circle.
+                $initials = mb_substr($USER->firstname, 0, 1) . mb_substr($USER->lastname, 0, 1);
+                $template->userpicture = '<div class="d-flex align-items-center justify-content-center rounded-circle bg-primary text-white" style="height: 65px; width: 65px;">' . $initials . '</div>';
+            }
+
+            // Last course accessed.
+            $sql = "SELECT courseid
+                      FROM {user_lastaccess}
+                     WHERE userid = $USER->id
+                  ORDER BY timeaccess DESC
+                     LIMIT 1";
+            $lastcourse = $DB->get_record_sql($sql);
+            if ($lastcourse) {
+                $c = get_course($lastcourse->courseid);
+                $c = new \core_course_list_element($c);
+                $template->lastcourse = $this->get_course_details($c);
+            }
+
+            // What service am i in?
+            $sql = "SELECT d.data
+                      FROM {user_info_data} d
+                      JOIN {user_info_field} f ON f.id = d.fieldid
+                     WHERE f.shortname = 'TLB'
+                       AND d.userid = $USER->id";
+            $primarycatagory = $DB->get_record_sql($sql);
+            $template->primarycat = $primarycatagory->data;
+            // Use for branding?
+            // Show course in that catagory, then others?
+
+            // TODO - no enrolled courses?
+            // TODO - order by/print favorites first - favorite has componant core_course  userid itemid.
+            // Enrolled courses.
+            $sortorder = 'fullname ASC';
+            $courses  = enrol_get_my_courses('summary, summaryformat', $sortorder);
+
+            // In progress / completed tabs?
+            // Catagory tags as filter?
+            // Search?
+            $mycourseids = []; // Array used to find events.
+            foreach ($courses as $c) {
+                $mycourseids[] = $c->id;
+                $c = new \core_course_list_element($c);
+                $course = $this->get_course_details($c, true);
+                $cat = new \stdClass;
+                $cat->cat = $course->cat;
+                $cat->catid = $course->catid;
+                $catagories[$cat->catid] = $cat;
+                $template->course[] = $course;
+            }
+            $template->count = count($template->course);
+            // Catagories to filter by.
+            var_dump($catagories);
+            $cats = ksort($catagories);
+            $template->cat = array_values($cats);
+
+            // Next event.
+            $courseids = '(' . implode(',', $mycourseids) . ')';
+            $sql = "SELECT e.timestart, m.*
+                      FROM {event} e
+                      JOIN {course_modules} m ON m.instance = e.instance
+                     WHERE m.course = e.courseid
+                       AND e.timestart > ".strtotime("now")."
+                       AND e.courseid IN " .$courseids. "
+                   ORDER BY e.timesort ASC
+                     LIMIT 1";
+            $e = $DB->get_record_sql($sql);
+            if ($e) {
+                // Template event.
+                $event = new stdClass;
+                $event->day = date("d", $e->timestart);
+                $event->month = date("M", $e->timestart);
+                $event->time = date("H:i", $e->timestart);
+                if ($event->time == '00:00') {
+                    $event->time = '';
+                }
+
+                $c = get_course($e->course);
+                $modinfo = get_fast_modinfo($c);
+                $cm = $modinfo->get_cm($e->id);
+                $event->name = $cm->get_formatted_name();
+                $event->coursename = $c->fullname;
+                $event->url = $cm->url;
+                $template->event = $event;
+            }
+
+            $replace['/\{himycourses\}/i'] = $OUTPUT->render_from_template('filter_filtercodes/course-tile', $template);
+        }
+
+        // Tag: {cardy} - a course card.
         if (stripos($text, '{cardy') !== false) {
             global $OUTPUT;
 
@@ -1151,7 +1434,9 @@ class filter_filtercodes extends moodle_text_filter {
                     $cat->description = $chelper->get_category_formatted_description($categoryobject);
                     $cat->count = $categoryobject->get_courses_count();
                     $cat->depth = $categoryobject->depth - 1;
-                    $cat->parentname = $categorynames[$categoryobject->parent];
+                    if ($categoryobject->parent) {
+                        $cat->parentname = $categorynames[$categoryobject->parent];
+                    }
                     $cat->course = [];
 
                     // Get courses in this category.

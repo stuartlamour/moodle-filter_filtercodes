@@ -1,0 +1,194 @@
+{{!
+    @template filter_filtercodes/course-tile
+}}
+
+<div class="row mb-3">
+    <div class="col">
+        <div class="media pt-4">
+            {{{userpicture}}}
+            <div class="media-body ml-3">
+                <div class="font-weight-bold">{{{fullname}}}</div>
+                <p class="text-muted small">Rank: Career path:</p>
+            </div>
+        </div>
+    </div>
+
+    {{! Next event. }}
+    {{#event}}
+    <div class="col-lg-3">
+        <small>Next event</small>
+        <div class="media my-1 position-relative">
+            <div class="rounded" style="background: linear-gradient(145deg, var(--primary) 0%, var(--success) 100%); padding: 1px;">
+                <div class="rounded p-2 text-center" style="background: rgba(255, 255, 255, .9); width : 60px;">
+                <div class="h5 font-weigth-bold mb-0">{{day}}</div>
+                <small>{{month}}</small>
+                </div>
+            </div>
+            <div class="media-body ml-3">
+                <div class="small text-muted">{{{coursename}}}</div>
+                <a href="{{{url}}}" class="font-weight-bold stretched-link line-clamp-2">{{{name}}}</a>
+                <div class="small text-muted">{{time}}</div>
+            </div>
+        </div>
+    </div>
+    {{/event}}
+
+    {{! Last course visited. }}
+    {{#lastcourse}}
+    <div class="col-lg-3">
+        <small>Pick up where you left off</small>
+        <div class="media my-1 position-relative">
+            <div class="bg-cover rounded bg-light" style="background-image: url('{{{img}}}'); height: 65px; width: 60px;"></div>
+            <div class="media-body ml-3">
+                <div class="small text-muted">{{{cat}}}</div>
+                <a href="{{config.wwwroot}}/course/view.php?id={{id}}" class="font-weight-bold stretched-link">{{{name}}}</a>
+            </div>
+        </div>
+    </div>
+    {{/lastcourse}}
+
+    <div class="col-lg-3">
+        <div class="media pt-4">
+            <img src="https://www.royalnavy.mod.uk/rnAssets/img/logo.png" width="65px;">
+            <div class="media-body ml-3">
+                <a href="#"><strong> {{primarycat}} DLE homepage</strong></a>
+                <p class="small">Description of whats on the dle for this service.</p>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<h3 class="font-weight-bold">{{count}} Courses</h3>
+
+<div id="course-filter" class="mb-3">
+ <small class="pr-3">Filter by:</small>
+ <button data-tagid="all"
+    aria-pressed="true"
+    class="course-filter-button badge badge-pill badge-primary px-2 mr-1"
+    aria-controls="my-courses"
+    >All courses</button>
+{{#cat}}
+
+       <button data-tagid="tagid_{{catid}}"
+       aria-pressed="false"
+       class="course-filter-button badge badge-pill badge-light px-2 mr-1"
+       aria-controls="my-courses"
+       >{{{cat}}}</button>
+
+{{/cat}}
+</div>
+
+<div id="my-courses">
+{{#course}}
+<!-- filter_filtercodes/course-tile template. -->
+<div class="course-card hover-scale tagid_{{catid}}">
+    <div class="py-3">
+    <div class="media position-relative">
+        <div class="overflow-hidden rounded mb-3 w-25">
+            <div class="hover-scale-target bg-cover img {{{^img}}} bg-light {{{/img}}}" style="background-image: url('{{{img}}}'); min-height: 150px;"></div>
+        </div>
+
+        <div class="media-body ml-4">
+            <div class="small text-muted">{{cat}}</div>
+            <a class="h5 course-link line-clamp-2 font-weight-bold text-body stretched-link" href="{{config.wwwroot}}/course/view.php?id={{id}}">{{{name}}}</a>
+
+
+            {{#completionenabled}}
+            <div class="my-2 w-50">
+                <div class="small">{{progress}}% {{#str}} complete {{/str}}</div>
+                <div class="progress my-2 rounded" style="height: .5rem;">
+                    <div class="progress-bar rounded bg-success" role="progressbar" aria-valuenow="{{progress}}" style="width: {{progress}}%" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+            </div>
+            {{/completionenabled}}
+
+            {{#hasforumpost}}
+                    <div class="small text-muted">Forum updates</div>
+                    <div class="row">
+                    {{#forumpost}}
+                        <div class="col-md-4">
+                        {{> filter_filtercodes/forum-post }}
+                        </div>
+                    {{/forumpost}}
+                    </div>
+            {{/hasforumpost}}
+        </div>
+    </div>
+
+</div>
+</div>
+
+<!-- /course-tile template. -->
+{{/course}}
+</div>
+
+{{#js}}
+require(['jquery'], function($) {
+    // Filter course cards by catagory.
+    $('#course-filter .course-filter-button').on( 'click', function(event) {
+        event.preventDefault();
+        tagid = $(this).attr('data-tagid');
+        if (tagid == 'all') {
+            $('.course-card').show();
+        }
+        else {
+            $('.course-card').hide();
+            $('.'+tagid).show();
+        }
+
+        // Toggle button class.
+        $('#course-filter .course-filter-button').attr('aria-pressed', 'false').removeClass('badge-primary').addClass('badge-light');
+        $(this).attr('aria-pressed', 'true').addClass('badge-primary').removeClass('badge-light');
+    });
+});
+{{/js}}
+<style>
+.course-filter-button {
+    border: none;
+}
+.w-33 {
+    width: 33%;
+}
+.line-clamp-1 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+}
+.line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+.line-clamp-3 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+}
+
+.bg-cover {
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
+}
+
+#catTabs .nav-link.active {
+    font-weight: bold;
+}
+#catTabs .nav-link {
+    box-shadow: none;
+}
+
+.hover-scale .hover-scale-target {
+    transition: all .5s;
+}
+.hover-scale:hover .hover-scale-target {
+    transform: scale(1.03);
+}
+.card {
+    border: 0px solid transparent;
+}
+</style>

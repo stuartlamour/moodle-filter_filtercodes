@@ -1,0 +1,13 @@
+{{!
+    @template filter_filtercodes/forum-post
+}}
+
+<!-- filter_filtercodes/forum-post template. -->
+<div class="forum-post media position-relative my-2">
+    {{{userpicture}}}
+    <div class="ml-2 media-body">
+        <small>{{{fullname}}} · <span class="text-muted">{{{date}}}<span></small><br>
+        <a class="line-clamp-2 stretched-link" href="{{{url}}}">{{{subject}}}</a>
+        <div class="line-clamp-2 small">{{message}}</div>
+    </div>
+</div>

@@ -2,42 +2,6 @@
     @template filter_filtercodes/tablist
 }}
 
-
-{{#js}}
-require(['jquery'], function($) {
-    $(document).ready(function(){
-        /* Search. */
-        $("#searchCats").on("input", function() {
-            var value = $(this).val().toLowerCase();
-
-            // Hide and show search container/tab content.
-            if (value.length > 2) {
-                $('#searchResults').addClass('d-block');
-                $('#catTabsContent').addClass('d-none');
-
-                // Hide/show cards.
-                $("#searchResults .course-link").filter(function() {
-                    $(this).parents('[class^="col-"]').toggle( $(this).text().toLowerCase().indexOf(value) > -1 );
-                    // Count results.
-                    $('#searchResultsCount').text($('#searchResults .course-card:visible').length);
-                });
-            }
-            else {
-                $('#searchResults').removeClass('d-block');
-                $('#catTabsContent').removeClass('d-none');
-            }
-        });
-
-        /* Clear serach on navigating away. */
-        $("#catTabs .nav-link").on("click", function() {
-            $("#searchCats").val('').trigger("input");
-        });
-    });
-});
-{{/js}}
-
-
-
 <!-- filter_filtercodes/tablist template. -->
 <div class="container">
     <form class="py-3 w-25 ml-auto">
@@ -103,6 +67,39 @@ require(['jquery'], function($) {
     </div>
 </div>
 <!-- /tablist template. -->
+
+{{#js}}
+require(['jquery'], function($) {
+    $(document).ready(function(){
+        /* Search. */
+        $("#searchCats").on("input", function() {
+            var value = $(this).val().toLowerCase();
+
+            // Hide and show search container/tab content.
+            if (value.length > 2) {
+                $('#searchResults').addClass('d-block');
+                $('#catTabsContent').addClass('d-none');
+
+                // Hide/show cards.
+                $("#searchResults .course-link").filter(function() {
+                    $(this).parents('[class^="col-"]').toggle( $(this).text().toLowerCase().indexOf(value) > -1 );
+                    // Count results.
+                    $('#searchResultsCount').text($('#searchResults .course-card:visible').length);
+                });
+            }
+            else {
+                $('#searchResults').removeClass('d-block');
+                $('#catTabsContent').removeClass('d-none');
+            }
+        });
+
+        /* Clear serach on navigating away. */
+        $("#catTabs .nav-link").on("click", function() {
+            $("#searchCats").val('').trigger("input");
+        });
+    });
+});
+{{/js}}
 
 <style>
 .line-clamp-2 {
